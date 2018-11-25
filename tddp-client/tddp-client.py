@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python2.7
 #
 # TP-Link Device Debug Protocol (TDDP) v2 Client
 # Based on https://www.google.com/patents/CN102096654A?cl=en

@@ -1,4 +1,4 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python2.7
 #
 # TP-Link Wi-Fi Smart Plug Protocol Client
 # For use with TP-Link HS-100 or HS-110
