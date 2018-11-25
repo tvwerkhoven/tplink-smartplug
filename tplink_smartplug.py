@@ -70,8 +70,6 @@ def decrypt(string):
 		key = cipher
 	return b''.join(map(chr, result)) if chars else bytes(result)
 
-
-
 class CommFailure(Exception):
 	pass
 
@@ -95,9 +93,6 @@ def comm(ip, cmd, port=9999):
 		sock_tcp.close()
 	res = decrypt(data[4:])
 	return res.decode() if dec else res
-
-
-
 
 if __name__ == '__main__':
 	import argparse
@@ -128,6 +123,13 @@ if __name__ == '__main__':
 	group.add_argument("-j", "--json", metavar="<JSON string>",
 		help="Full JSON string of command to send")
 
+	parser.add_argument('--influxdb', type=str, metavar=("URI", "database"), default=None,
+			nargs=2, help='If command is "energy", push to influxdb. URI should point to influxdb, e.g. [http/https]://<ip>:<port>. Database: e.g. smarthome.')
+	parser.add_argument('--influxdb_energy', type=str, metavar="query", default=None,
+			help='query to store energy as Joule, e.g. energy,type=elec,device=hs110-1 this will be appended with <energy in joule> (as int)')
+	parser.add_argument('--influxdb_power', type=str, metavar="query", default=None,
+			help='query to store power as Watt, e.g. power,type=elec,device=hs110-1 this will be appended with <power in W> (as float)')
+
 	args = parser.parse_args()
 
 
@@ -147,4 +149,34 @@ if __name__ == '__main__':
 		else:
 			print("%-16s %s" % ("Sent(%d):" % (len(cmd),), cmd))
 			print("%-16s %s" % ("Received(%d):" % (len(reply),), reply))
+	
+	if (args.command == "energy") and (args.influxdb != None):
+		import requests
+		import json
+
+		# Get total_wh from json response
+		energy_wh = json.loads(reply)['emeter']['get_realtime']['total_wh']
+		energy_joule = int(energy_wh)*3600
+
+		power_mW = json.loads(reply)['emeter']['get_realtime']['power_mw']
+		power_W = float(power_mW)/1000.0
+
+		# Build URI and query
+		# Something like req_url = "http://localhost:8086/write?db=smarthometest&precision=s"
+		req_url = args.influxdb[0]+"/write?db="+args.influxdb[1]+"&precision=s"
+		# Something like post_data = "water,type=usage,device=sensus value=1"
+		post_data = ""
+		if (args.influxdb_energy != None):
+			post_data = args.influxdb_energy+" value="+str(energy_joule)
+		if (args.influxdb_power != None):
+			post_data += "\n"+args.influxdb_power+" value="+str(power_W)
+		
+		# Post data to influxdb
+		try:
+			httpresponse = requests.post(req_url, data=post_data, verify=False, timeout=5)
+			if (httpresponse.status_code != 204):
+				print( "Push to influxdb failed: " + str(httpresponse.status_code) + " - " + str(httpresponse.text))
+		except requests.exceptions.Timeout as e:
+			print( "Update failed due to timeout. Is influxdb running?")
+	
 	sys.exit(ec)
