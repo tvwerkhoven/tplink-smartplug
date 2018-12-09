@@ -125,13 +125,10 @@ if __name__ == '__main__':
 
 	parser.add_argument('--influxdb', type=str, metavar=("URI", "database"), default=None,
 			nargs=2, help='If command is "energy", push to influxdb. URI should point to influxdb, e.g. [http/https]://<ip>:<port>. Database: e.g. smarthome.')
-	parser.add_argument('--influxdb_energy', type=str, metavar="query", default=None,
-			help='query to store energy as Joule, e.g. energy,type=elec,device=hs110-1 this will be appended with <energy in joule> (as int)')
-	parser.add_argument('--influxdb_power', type=str, metavar="query", default=None,
-			help='query to store power as Watt, e.g. power,type=elec,device=hs110-1 this will be appended with <power in W> (as float)')
+	parser.add_argument('--influxdb_query', type=str, metavar="query", default=None,
+			help='influxdb query to store data, {power} (in W, as float) and {energy} (in J, as int) are available variables, e.g. home,type=elec,device=hs110-1 energy={energy},power={power} epoch')
 
 	args = parser.parse_args()
-
 
 	# command to send
 	cmd = args.json if args.json else COMMANDS[args.command or 'info']
@@ -150,7 +147,7 @@ if __name__ == '__main__':
 			print("%-16s %s" % ("Sent(%d):" % (len(cmd),), cmd))
 			print("%-16s %s" % ("Received(%d):" % (len(reply),), reply))
 	
-	if (args.command == "energy") and (args.influxdb != None):
+	if (args.command == "energy") and (args.influxdb != None) and (args.influxdb_query != None):
 		import requests
 		import json
 
@@ -163,20 +160,16 @@ if __name__ == '__main__':
 
 		# Build URI and query
 		# Something like req_url = "http://localhost:8086/write?db=smarthometest&precision=s"
-		req_url = args.influxdb[0]+"/write?db="+args.influxdb[1]+"&precision=s"
-		# Something like post_data = "water,type=usage,device=sensus value=1"
-		post_data = ""
-		if (args.influxdb_energy != None):
-			post_data = args.influxdb_energy+" value="+str(energy_joule)
-		if (args.influxdb_power != None):
-			post_data += "\n"+args.influxdb_power+" value="+str(power_W)
+		req_url = "{URI}/write?db={db}&precision=s".format(URI=args.influxdb[0],db=args.influxdb[1])
+		# Something like post_data = "stats,type=usage,device=sensus power={power},energy={energy}"
+		post_data = args.influxdb_query.format(energy=energy_joule, power=power_W)
 		
 		# Post data to influxdb
 		try:
 			httpresponse = requests.post(req_url, data=post_data, verify=False, timeout=5)
 			if (httpresponse.status_code != 204):
-				print( "Push to influxdb failed: " + str(httpresponse.status_code) + " - " + str(httpresponse.text))
+				print("Push to influxdb failed: {} - {}".format(str(httpresponse.status_code), str(httpresponse.text)))
 		except requests.exceptions.Timeout as e:
-			print( "Update failed due to timeout. Is influxdb running?")
+			print("Update failed due to timeout. Is influxdb running?")
 	
 	sys.exit(ec)
