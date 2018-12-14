@@ -114,8 +114,8 @@ if __name__ == '__main__':
 	parser.add_argument("-n", "--naked-json", action='store_true',
 		help="Output only the JSON result")
 
-	parser.add_argument("-t", "--target", metavar="<hostname>", required=True, type=validHostname,
-		help="Target hostname or IP address")
+	parser.add_argument("-t", "--target", metavar="<hostname>", required=True,
+		type=validHostname, help="Target hostname or IP address")
 
 	group = parser.add_mutually_exclusive_group()
 	group.add_argument("-c", "--command", metavar="<command>", choices=COMMANDS,
@@ -123,10 +123,16 @@ if __name__ == '__main__':
 	group.add_argument("-j", "--json", metavar="<JSON string>",
 		help="Full JSON string of command to send")
 
-	parser.add_argument('--influxdb', type=str, metavar=("URI", "database"), default=None,
-			nargs=2, help='If command is "energy", push to influxdb. URI should point to influxdb, e.g. [http/https]://<ip>:<port>. Database: e.g. smarthome.')
-	parser.add_argument('--influxdb_query', type=str, metavar="query", default=None,
-			help='influxdb query to store data, {power} (in W, as float) and {energy} (in J, as int) are available variables, e.g. home,type=elec,device=hs110-1 energy={energy},power={power} epoch')
+	parser.add_argument('--influxdb', type=str, metavar=("URI", "database"),
+		default=None, nargs=2, help='If command is "energy", push to \
+		influxdb. URI should point to influxdb, e.g. \
+		[http/https]://<ip>:<port>. Database: e.g. smarthome.')
+	parser.add_argument('--influxdb_query', type=str, metavar="query", 
+		default=None, nargs="*", help='influxdb query to store data, \
+		{power} (in W, as float) and {energy} (in J, as int) are available \
+		variables, e.g. \'home,type=elec,device=hs110-1 energy={energy},power={power}\
+		 epoch\'. Multiple arguments will be concatenated as multiple lines \
+		 which allows to insert multiple entries in influxdb in one call.')
 
 	args = parser.parse_args()
 
@@ -151,7 +157,7 @@ if __name__ == '__main__':
 		import requests
 		import json
 
-		# Get total_wh from json response
+		# Get total_wh and power_mw from json response
 		energy_wh = json.loads(reply)['emeter']['get_realtime']['total_wh']
 		energy_joule = int(energy_wh)*3600
 
@@ -162,7 +168,7 @@ if __name__ == '__main__':
 		# Something like req_url = "http://localhost:8086/write?db=smarthometest&precision=s"
 		req_url = "{URI}/write?db={db}&precision=s".format(URI=args.influxdb[0],db=args.influxdb[1])
 		# Something like post_data = "stats,type=usage,device=sensus power={power},energy={energy}"
-		post_data = args.influxdb_query.format(energy=energy_joule, power=power_W)
+		post_data = "\n".join([s.format(energy=energy_joule, power=power_W) for s in args.influxdb_query])
 		
 		# Post data to influxdb
 		try:
