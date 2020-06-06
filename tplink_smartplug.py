@@ -22,6 +22,8 @@
 from __future__ import print_function
 import socket
 from struct import pack, unpack
+import logging
+import logging.handlers
 
 VERSION = 0.9
 
@@ -106,6 +108,17 @@ if __name__ == '__main__':
 			parser.error("Invalid hostname.")
 		return hostname
 
+	# Init logger, defaults to console
+	my_logger = logging.getLogger("MyLogger")
+	my_logger.setLevel(logging.DEBUG)
+
+	# create syslog handler which also shows filename in log
+	handler_syslog = logging.handlers.SysLogHandler(address = '/dev/log')
+	formatter = logging.Formatter('%(filename)s: %(message)s')
+	handler_syslog.setFormatter(formatter)
+	handler_syslog.setLevel(logging.INFO)
+	my_logger.addHandler(handler_syslog)
+
 
 	# Parse commandline arguments
 	description="TP-Link Wi-Fi Smart Plug Client v%s" % (VERSION,)
@@ -174,8 +187,9 @@ if __name__ == '__main__':
 		try:
 			httpresponse = requests.post(req_url, data=post_data, verify=False, timeout=5)
 			if (httpresponse.status_code != 204):
-				print("Push to influxdb failed: {} - {}".format(str(httpresponse.status_code), str(httpresponse.text)))
+				my_logger.error("Push to influxdb failed: {} - {}".format(str(httpresponse.status_code), str(httpresponse.text)))
+
 		except requests.exceptions.Timeout as e:
-			print("Update failed due to timeout. Is influxdb running?")
+			my_logger.exception("Update failed due to timeout. Is influxdb running?")
 	
 	sys.exit(ec)
